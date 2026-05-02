@@ -17,6 +17,9 @@ export function Room() {
   const [room, setRoom] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [stories, setStories] = useState<any[]>([]);
+  const [phase1Votes, setPhase1Votes] = useState<any[]>([]);
+  const [phase2Votes, setPhase2Votes] = useState<any[]>([]);
+  const [phase3Votes, setPhase3Votes] = useState<any[]>([]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -33,16 +36,194 @@ export function Room() {
       setStories(s.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/userStories`));
 
-    return () => { unsubRoom(); unsubMembers(); unsubStories(); };
+    const unsub1 = onSnapshot(collection(db, `rooms/${roomId}/phase1Votes`), (s) => setPhase1Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase1Votes`));
+    const unsub2 = onSnapshot(collection(db, `rooms/${roomId}/phase2Votes`), (s) => setPhase2Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase2Votes`));
+    const unsub3 = onSnapshot(collection(db, `rooms/${roomId}/phase3Votes`), (s) => setPhase3Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase3Votes`));
+
+    return () => { unsubRoom(); unsubMembers(); unsubStories(); unsub1(); unsub2(); unsub3(); };
   }, [roomId, navigate]);
 
   if (!room) return <div className="p-8 text-center text-neutral-500">Cargando sala...</div>;
 
   const isAdmin = user?.uid === room.adminId;
 
+  // Compute Phase 1 Consensus checking
+  let minConsensus = { storyId: '', complexity: 0 };
+  let maxConsensus = { storyId: '', complexity: 0 };
+
+  if (phase1Votes.length > 0) {
+    const minCounts: Record<string, { count: number, sum: number}> = {};
+    const maxCounts: Record<string, { count: number, sum: number}> = {};
+    phase1Votes.forEach(v => {
+      if (v.minStoryId) {
+        minCounts[v.minStoryId] = minCounts[v.minStoryId] || { count: 0, sum: 0 };
+        minCounts[v.minStoryId].count++;
+        minCounts[v.minStoryId].sum += (v.minComplexity || 0);
+      }
+      if (v.maxStoryId) {
+        maxCounts[v.maxStoryId] = maxCounts[v.maxStoryId] || { count: 0, sum: 0 };
+        maxCounts[v.maxStoryId].count++;
+        maxCounts[v.maxStoryId].sum += (v.maxComplexity || 0);
+      }
+    });
+
+    if (Object.keys(minCounts).length > 0) {
+      const bestMinId = Object.keys(minCounts).reduce((a, b) => minCounts[a].count > minCounts[b].count ? a : b);
+      minConsensus = { storyId: bestMinId, complexity: Math.round(minCounts[bestMinId].sum / minCounts[bestMinId].count) };
+    }
+    if (Object.keys(maxCounts).length > 0) {
+      const bestMaxId = Object.keys(maxCounts).reduce((a, b) => maxCounts[a].count > maxCounts[b].count ? a : b);
+      maxConsensus = { storyId: bestMaxId, complexity: Math.round(maxCounts[bestMaxId].sum / maxCounts[bestMaxId].count) };
+    }
+  }
+
+  const checkConsensusForPhase = (targetPhase: number) => {
+    if (targetPhase <= room.phase) return true;
+
+    if (room.phase === 1 && targetPhase === 2) {
+      if (phase1Votes.length !== members.length || phase1Votes.length === 0) return false;
+      let firstVote = phase1Votes[0];
+      for (const v of phase1Votes) {
+        if (v.minStoryId !== firstVote.minStoryId || v.minComplexity !== firstVote.minComplexity ||
+            v.maxStoryId !== firstVote.maxStoryId || v.maxComplexity !== firstVote.maxComplexity) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (room.phase === 2 && targetPhase === 3) {
+      if (phase2Votes.length !== members.length || phase2Votes.length === 0) return false;
+      let isAligned = true;
+      for (const story of stories) {
+        let firstVote: any = null;
+        for (const userVote of phase2Votes) {
+          if (!userVote.submitted) {
+            isAligned = false; 
+            break;
+          }
+          const v = userVote.votes?.[story.id];
+          if (!v || !v.priority) {
+            isAligned = false;
+            break;
+          }
+          if (story.id !== minConsensus.storyId && story.id !== maxConsensus.storyId) {
+             if (!v.complexity) {
+               isAligned = false;
+               break;
+             }
+          }
+
+          if (!firstVote) firstVote = v;
+          else {
+            if (firstVote.priority !== v.priority) {
+               isAligned = false; break;
+            }
+            if (story.id !== minConsensus.storyId && story.id !== maxConsensus.storyId) {
+               if (firstVote.complexity !== v.complexity) {
+                 isAligned = false; break;
+               }
+            }
+          }
+        }
+        if (!isAligned) break;
+      }
+      return isAligned;
+    }
+
+    if (room.phase === 3 && targetPhase === 4) {
+      if (phase3Votes.length !== members.length || phase3Votes.length === 0) return false;
+      let firstVote = phase3Votes[0];
+      for (const v of phase3Votes) {
+        if (v.sprintDuration !== firstVote.sprintDuration || v.commitment !== firstVote.commitment) return false;
+      }
+      return true;
+    }
+
+    return true;
+  };
+
+  const handlePhaseClick = async (stepPhase: number) => {
+    if (!isAdmin) return;
+    if (stepPhase > room.phase && !checkConsensusForPhase(stepPhase)) {
+      alert("No hay consenso completo en el equipo para avanzar a esta fase.");
+      return;
+    }
+
+    if (room.phase === 2 && stepPhase === 3) {
+      // Auto-apply consensus
+      const promises = stories.map(story => {
+        let avgComplexity = 0;
+        let topPriority = 'M';
+        if (story.id === minConsensus.storyId) {
+          avgComplexity = minConsensus.complexity;
+        } else if (story.id === maxConsensus.storyId) {
+          avgComplexity = maxConsensus.complexity;
+        } else {
+          const vote = phase2Votes[0]?.votes?.[story.id];
+          avgComplexity = vote?.complexity || 0;
+        }
+        
+        const moscowCounts: Record<string, number> = {};
+        phase2Votes.forEach(v => {
+           const p = v.votes?.[story.id]?.priority;
+           if (p) moscowCounts[p] = (moscowCounts[p] || 0) + 1;
+        });
+        if (Object.keys(moscowCounts).length > 0) {
+          topPriority = Object.keys(moscowCounts).reduce((a, b) => moscowCounts[a] > moscowCounts[b] ? a : b);
+        }
+
+        return updateDoc(doc(db, `rooms/${roomId}/userStories/${story.id}`), {
+          complexity: avgComplexity,
+          priority: topPriority
+        });
+      });
+      Promise.all(promises).catch(console.error);
+    }
+
+    await updateDoc(doc(db, 'rooms', roomId!), { phase: stepPhase });
+  }
+
   const handleNextPhase = async () => {
     if (!isAdmin) return;
     const nextPhase = room.phase + 1;
+    if (!checkConsensusForPhase(nextPhase)) {
+      alert("No hay consenso completo en el equipo para avanzar a esta fase.");
+      return;
+    }
+
+    if (room.phase === 2 && nextPhase === 3) {
+      // Auto-apply consensus
+      const promises = stories.map(story => {
+        let avgComplexity = 0;
+        let topPriority = 'M';
+        if (story.id === minConsensus.storyId) {
+          avgComplexity = minConsensus.complexity;
+        } else if (story.id === maxConsensus.storyId) {
+          avgComplexity = maxConsensus.complexity;
+        } else {
+          // Since there is consensus, any user's vote is fine, we just take the first
+          const vote = phase2Votes[0]?.votes?.[story.id];
+          avgComplexity = vote?.complexity || 0;
+        }
+        
+        const moscowCounts: Record<string, number> = {};
+        phase2Votes.forEach(v => {
+           const p = v.votes?.[story.id]?.priority;
+           if (p) moscowCounts[p] = (moscowCounts[p] || 0) + 1;
+        });
+        if (Object.keys(moscowCounts).length > 0) {
+          topPriority = Object.keys(moscowCounts).reduce((a, b) => moscowCounts[a] > moscowCounts[b] ? a : b);
+        }
+
+        return updateDoc(doc(db, `rooms/${roomId}/userStories/${story.id}`), {
+          complexity: avgComplexity,
+          priority: topPriority
+        });
+      });
+      Promise.all(promises).catch(console.error);
+    }
+
     await updateDoc(doc(db, 'rooms', roomId!), { phase: nextPhase });
   };
 
@@ -50,6 +231,17 @@ export function Room() {
     if (!isAdmin) return;
     if (confirm(`¿Eliminar al usuario?`)) {
       await deleteDoc(doc(db, `rooms/${roomId!}/members/${memberId}`));
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    if (!isAdmin) return;
+    if (confirm('¿Estás seguro de que quieres eliminar esta sala? Esta acción no se puede deshacer.')) {
+      try {
+         await deleteDoc(doc(db, 'rooms', roomId!));
+      } catch (err) {
+         handleFirestoreError(err, OperationType.DELETE, `rooms/${roomId!}`);
+      }
     }
   };
 
@@ -80,7 +272,12 @@ export function Room() {
               <Copy className="w-4 h-4"/>
             </button>
           </div>
-          <Button onClick={() => navigate('/')} variant="secondary" className="shrink-0 text-xs md:text-sm h-8 md:h-10">Volver</Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button onClick={handleDeleteRoom} variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 shrink-0 text-xs md:text-sm h-8 md:h-10">Eliminar Sala</Button>
+            )}
+            <Button onClick={() => navigate('/')} variant="secondary" className="shrink-0 text-xs md:text-sm h-8 md:h-10">Volver</Button>
+          </div>
         </div>
       </header>
 
@@ -95,7 +292,7 @@ export function Room() {
             <React.Fragment key={step.phase}>
               <div 
                 className={`flex flex-col items-center gap-2 transition-all ${room.phase < step.phase ? 'opacity-50' : ''} ${isAdmin ? 'cursor-pointer hover:opacity-80 group' : ''}`}
-                onClick={() => isAdmin && updateDoc(doc(db, 'rooms', roomId!), { phase: step.phase })}
+                onClick={() => handlePhaseClick(step.phase)}
               >
                 <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-colors shrink-0 ${room.phase === step.phase ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 text-slate-500 group-hover:border-indigo-400'}`}>
                   {step.phase}

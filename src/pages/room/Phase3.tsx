@@ -9,24 +9,114 @@ export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, 
   const [votes, setVotes] = useState<any[]>([]);
   const [sprintDuration, setSprintDuration] = useState<number | ''>('');
   const [commitment, setCommitment] = useState<number | ''>('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const [phase2Votes, setPhase2Votes] = useState<any[]>([]);
+
+  const [phase3Votes, setPhase3Votes] = useState<any[]>([]); // oops, it's called votes
+  const [phase1Votes, setPhase1Votes] = useState<any[]>([]);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, `rooms/${roomId}/phase3Votes`), (s) => {
+    const unsub3 = onSnapshot(collection(db, `rooms/${roomId}/phase3Votes`), (s) => {
       const v = s.docs.map(d => d.data());
       setVotes(v);
       const myVote = v.find(vote => vote.userId === user?.uid);
       if (myVote) {
         setSprintDuration(myVote.sprintDuration);
         setCommitment(myVote.commitment);
+        setSubmitted(true);
       }
     }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase3Votes`));
-    return unsub;
+
+    const unsub2 = onSnapshot(collection(db, `rooms/${roomId}/phase2Votes`), (s) => {
+      setPhase2Votes(s.docs.map(d => d.data()));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase2Votes`));
+
+    const unsub1 = onSnapshot(collection(db, `rooms/${roomId}/phase1Votes`), (s) => {
+      setPhase1Votes(s.docs.map(d => d.data()));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase1Votes`));
+
+    return () => { unsub3(); unsub2(); unsub1(); };
   }, [roomId, user]);
 
   const totalWeight = stories.reduce((sum, s) => sum + (s.complexity || 0), 0);
 
+  // Compute Phase 1 Consensus
+  let minConsensus = { storyId: '', complexity: 0 };
+  let maxConsensus = { storyId: '', complexity: 0 };
+  if (phase1Votes.length > 0) {
+    const minCounts: Record<string, { count: number, sum: number}> = {};
+    const maxCounts: Record<string, { count: number, sum: number}> = {};
+    phase1Votes.forEach(v => {
+      if (v.minStoryId) {
+        minCounts[v.minStoryId] = minCounts[v.minStoryId] || { count: 0, sum: 0 };
+        minCounts[v.minStoryId].count++;
+        minCounts[v.minStoryId].sum += (v.minComplexity || 0);
+      }
+      if (v.maxStoryId) {
+        maxCounts[v.maxStoryId] = maxCounts[v.maxStoryId] || { count: 0, sum: 0 };
+        maxCounts[v.maxStoryId].count++;
+        maxCounts[v.maxStoryId].sum += (v.maxComplexity || 0);
+      }
+    });
+    if (Object.keys(minCounts).length > 0) {
+      const bestMinId = Object.keys(minCounts).reduce((a, b) => minCounts[a].count > minCounts[b].count ? a : b);
+      minConsensus = { storyId: bestMinId, complexity: Math.round(minCounts[bestMinId].sum / minCounts[bestMinId].count) };
+    }
+    if (Object.keys(maxCounts).length > 0) {
+      const bestMaxId = Object.keys(maxCounts).reduce((a, b) => maxCounts[a].count > maxCounts[b].count ? a : b);
+      maxConsensus = { storyId: bestMaxId, complexity: Math.round(maxCounts[bestMaxId].sum / maxCounts[bestMaxId].count) };
+    }
+  }
+
+  // Check if all phase 2 votes match
+  let isAligned = true;
+  if (phase2Votes.length !== members.length || phase2Votes.length === 0) {
+    isAligned = false;
+  } else {
+    for (const story of stories) {
+       let firstVote: any = null;
+       for (const userVote of phase2Votes) {
+          if (!userVote.submitted) {
+            isAligned = false;
+            break;
+          }
+          const v = userVote.votes?.[story.id];
+          if (!v || !v.priority) {
+             isAligned = false;
+             break;
+          }
+          if (story.id !== minConsensus.storyId && story.id !== maxConsensus.storyId) {
+             if (!v.complexity) {
+                isAligned = false;
+                break;
+             }
+          }
+          if (!firstVote) {
+             firstVote = v;
+          } else {
+             if (firstVote.priority !== v.priority) {
+                isAligned = false;
+                break;
+             }
+             if (story.id !== minConsensus.storyId && story.id !== maxConsensus.storyId) {
+                if (firstVote.complexity !== v.complexity) {
+                   isAligned = false;
+                   break;
+                }
+             }
+          }
+       }
+       if (!isAligned) break;
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAligned) {
+      alert("No puedes enviar una propuesta de sprint si los puntajes de complejidad y prioridad no cuadran entre todos los usuarios en la fase de estimación.");
+      return;
+    }
     if (!user || sprintDuration === '' || commitment === '') return;
     try {
       await setDoc(doc(db, `rooms/${roomId}/phase3Votes/${user.uid}`), {
@@ -138,23 +228,29 @@ export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, 
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Votaciones del Equipo</h3>
-          <ul className="space-y-3 mb-6">
-            {members.map(m => {
-              const v = votes.find(vote => vote.userId === m.userId);
-              return (
-                <li key={m.userId} className="flex justify-between items-center text-sm p-2 rounded-lg border border-slate-100 bg-slate-50">
-                  <span className="font-semibold text-slate-800">{m.username}</span>
-                  {v ? (
-                    <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">
-                      {v.sprintDuration} sem / {v.commitment} pts
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 italic">Esperando...</span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          {!submitted ? (
+            <div className="text-sm text-slate-500 italic p-4 text-center border border-dashed border-slate-200 rounded-lg mb-6">
+              Envía tu propuesta para poder ver las votaciones del resto del equipo.
+            </div>
+          ) : (
+            <ul className="space-y-3 mb-6">
+              {members.map(m => {
+                const v = votes.find(vote => vote.userId === m.userId);
+                return (
+                  <li key={m.userId} className="flex justify-between items-center text-sm p-2 rounded-lg border border-slate-100 bg-slate-50">
+                    <span className="font-semibold text-slate-800">{m.username}</span>
+                    {v ? (
+                      <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">
+                        {v.sprintDuration} sem / {v.commitment} pts
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic">Esperando...</span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
 
           {isAdmin && (
             <div className="mt-auto border-t border-slate-100 pt-6">

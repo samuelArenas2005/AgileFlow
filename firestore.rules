@@ -37,7 +37,7 @@ service cloud.firestore {
       
       allow create: if isSignedIn() && isValidRoom(request.resource.data);
       allow update: if isSignedIn() && isValidRoomUpdate(request.resource.data, resource.data) && (
-        isAdmin(roomId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'sprintDuration', 'commitment', 'status'])
+        isAdmin(roomId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'sprintDuration', 'commitment', 'status', 'sprints'])
       );
       allow delete: if isAdmin(roomId);
 
@@ -91,7 +91,7 @@ service cloud.firestore {
                       request.resource.data.createdAt is number;
         allow update: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid && 
                       request.resource.data.userId == resource.data.userId &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'createdAt', 'userId', 'username']);
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'createdAt', 'userId', 'username', 'submitted']);
       }
 
       match /phase3Votes/{voteId} {

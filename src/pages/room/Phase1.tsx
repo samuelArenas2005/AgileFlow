@@ -34,6 +34,14 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !minStoryId || !maxStoryId || minComplexity === '' || maxComplexity === '') return;
+    if (minStoryId === maxStoryId) {
+      alert("La historia mínima y máxima no pueden ser la misma.");
+      return;
+    }
+    if (Number(minComplexity) >= Number(maxComplexity)) {
+      alert("La complejidad de la historia mínima debe ser menor a la máxima.");
+      return;
+    }
     try {
       await setDoc(doc(db, `rooms/${roomId}/phase1Votes/${user.uid}`), {
         userId: user.uid,
@@ -100,39 +108,45 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-sm font-bold text-slate-800 mb-4">Votaciones del Equipo</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 font-medium">
-              <tr>
-                <th className="px-4 py-3 rounded-tl-md">Usuario</th>
-                <th className="px-4 py-3">Mínima (HU)</th>
-                <th className="px-4 py-3">Valor Mín.</th>
-                <th className="px-4 py-3">Máxima (HU)</th>
-                <th className="px-4 py-3 rounded-tr-md">Valor Máx.</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {members.map(m => {
-                const userVote = votes.find(v => v.userId === m.userId);
-                return (
-                  <tr key={m.userId} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-medium text-slate-900">{m.username}</td>
-                    {userVote ? (
-                      <>
-                        <td className="px-4 py-3">{userVote.minStoryId}</td>
-                        <td className="px-4 py-3 font-mono">{userVote.minComplexity}</td>
-                        <td className="px-4 py-3">{userVote.maxStoryId}</td>
-                        <td className="px-4 py-3 font-mono">{userVote.maxComplexity}</td>
-                      </>
-                    ) : (
-                      <td colSpan={4} className="px-4 py-3 text-slate-400 italic">Esperando...</td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {!submitted ? (
+          <div className="text-sm text-slate-500 italic p-4 text-center border border-dashed border-slate-200 rounded-lg">
+            Envía tu propuesta para poder ver las votaciones del resto del equipo.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 font-medium">
+                <tr>
+                  <th className="px-4 py-3 rounded-tl-md">Usuario</th>
+                  <th className="px-4 py-3">Mínima (HU)</th>
+                  <th className="px-4 py-3">Valor Mín.</th>
+                  <th className="px-4 py-3">Máxima (HU)</th>
+                  <th className="px-4 py-3 rounded-tr-md">Valor Máx.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {members.map(m => {
+                  const userVote = votes.find(v => v.userId === m.userId);
+                  return (
+                    <tr key={m.userId} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-medium text-slate-900">{m.username}</td>
+                      {userVote ? (
+                        <>
+                          <td className="px-4 py-3">{userVote.minStoryId}</td>
+                          <td className="px-4 py-3 font-mono">{userVote.minComplexity}</td>
+                          <td className="px-4 py-3">{userVote.maxStoryId}</td>
+                          <td className="px-4 py-3 font-mono">{userVote.maxComplexity}</td>
+                        </>
+                      ) : (
+                        <td colSpan={4} className="px-4 py-3 text-slate-400 italic">Esperando...</td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
