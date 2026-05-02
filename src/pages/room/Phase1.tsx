@@ -4,6 +4,8 @@ import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { doc, collection, onSnapshot, setDoc } from 'firebase/firestore';
 import { Button } from '../../components/ui/Button';
 
+const FIBONACCI = [0, 1, 2, 3, 5, 8, 13, 20, 40, 100];
+
 export function Phase1({ roomId, stories, members }: { roomId: string, stories: any[], members: any[], isAdmin: boolean }) {
   const { user, username } = useAuth();
   const [votes, setVotes] = useState<any[]>([]);
@@ -41,7 +43,7 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
         maxStoryId,
         maxComplexity: Number(maxComplexity),
         createdAt: Date.now()
-      });
+      }, { merge: true });
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `rooms/${roomId}/phase1Votes`);
     }
@@ -65,7 +67,10 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Valor (ej: 1, 2, 3)</label>
-              <input type="number" className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none" value={minComplexity} onChange={e => setMinComplexity(e.target.value ? Number(e.target.value) : '')} required min="0"/>
+              <select className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none" value={minComplexity} onChange={e => setMinComplexity(e.target.value ? Number(e.target.value) : '')} required>
+                <option value="">-- Elige un valor --</option>
+                {FIBONACCI.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
             </div>
           </div>
 
@@ -80,7 +85,10 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Valor (ej: 13, 20, 40)</label>
-              <input type="number" className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none" value={maxComplexity} onChange={e => setMaxComplexity(e.target.value ? Number(e.target.value) : '')} required min="0"/>
+              <select className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none" value={maxComplexity} onChange={e => setMaxComplexity(e.target.value ? Number(e.target.value) : '')} required>
+                <option value="">-- Elige un valor --</option>
+                {FIBONACCI.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
             </div>
           </div>
           

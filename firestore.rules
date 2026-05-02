@@ -79,7 +79,7 @@ service cloud.firestore {
                       request.resource.data.createdAt is number;
         allow update: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid && 
                       request.resource.data.userId == resource.data.userId &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['minStoryId', 'minComplexity', 'maxStoryId', 'maxComplexity']);
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['minStoryId', 'minComplexity', 'maxStoryId', 'maxComplexity', 'createdAt', 'userId', 'username']);
       }
       
       match /phase2Votes/{voteId} {
@@ -91,7 +91,7 @@ service cloud.firestore {
                       request.resource.data.createdAt is number;
         allow update: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid && 
                       request.resource.data.userId == resource.data.userId &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']);
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'createdAt', 'userId', 'username']);
       }
 
       match /phase3Votes/{voteId} {
@@ -104,7 +104,7 @@ service cloud.firestore {
                       request.resource.data.createdAt is number;
         allow update: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid && 
                       request.resource.data.userId == resource.data.userId &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sprintDuration', 'commitment']);
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sprintDuration', 'commitment', 'createdAt', 'userId', 'username']);
       }
     }
   }
