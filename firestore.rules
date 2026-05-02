@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitives
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin(roomId) { 
+      return isSignedIn() && get(/databases/$(database)/documents/rooms/$(roomId)).data.adminId == request.auth.uid; 
+    }
+    function isRoomMember(roomId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid));
+    }
+    function isValidRoom(data) {
+      return data.keys().hasAll(['title', 'adminId', 'phase', 'createdAt', 'status']) && 
+             data.keys().size() <= 7 &&
+             data.title is string && data.title.size() <= 100 &&
+             data.adminId is string && data.adminId.size() <= 128 &&
+             data.phase is number && data.phase >= 0 && data.phase <= 4 &&
+             data.createdAt is number && data.status is string &&
+             data.adminId == request.auth.uid;
+    }
+    function isValidRoomUpdate(incoming, existing) {
+       return incoming.adminId == existing.adminId &&
+              incoming.createdAt == existing.createdAt &&
+              incoming.title is string && incoming.title.size() <= 100 &&
+              incoming.phase is number && incoming.phase >= 0 && incoming.phase <= 4 &&
+              incoming.status is string && incoming.status.size() <= 20;
+    }
+
+    match /rooms/{roomId} {
+      allow get: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId));
+      allow list: if isSignedIn() && resource.data.adminId == request.auth.uid; 
+      
+      allow create: if isSignedIn() && isValidRoom(request.resource.data);
+      allow update: if isSignedIn() && isValidRoomUpdate(request.resource.data, resource.data) && (
+        isAdmin(roomId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase', 'sprintDuration', 'commitment', 'status'])
+      );
+      allow delete: if isAdmin(roomId);
+
+      match /members/{memberId} {
+        allow get: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId) || memberId == request.auth.uid);
+        allow list: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId));
+        
+        allow create: if isSignedIn() && memberId == request.auth.uid && request.resource.data.keys().hasAll(['userId', 'username', 'joinedAt']) && request.resource.data.keys().size() == 3 &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.username is string && request.resource.data.username.size() <= 100 &&
+                      request.resource.data.joinedAt is number;
+                      
+        allow delete: if isSignedIn() && (memberId == request.auth.uid || isAdmin(roomId));
+      }
+
+      match /userStories/{storyId} {
+        allow read: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId));
+        allow create: if isAdmin(roomId) && request.resource.data.keys().hasAll(['id', 'title']) &&
+                      request.resource.data.id is string && request.resource.data.id.size() <= 50 &&
+                      request.resource.data.title is string && request.resource.data.title.size() <= 200;
+        allow update: if isAdmin(roomId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['complexity', 'priority', 'assignedSprint', 'assignedUser', 'title', 'description']);
+        allow delete: if isAdmin(roomId);
+      }
+
+      match /phase1Votes/{voteId} {
+        allow read: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId));
+        allow create: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid &&
+                      request.resource.data.keys().hasAll(['userId', 'username', 'minStoryId', 'minComplexity', 'maxStoryId', 'maxComplexity', 'createdAt']) &&
+                      request.resource.data.keys().size() == 7 &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.username is string && request.resource.data.username.size() <= 100 &&
+                      request.resource.data.minStoryId is string && request.resource.data.minStoryId.size() <= 50 &&
+                      request.resource.data.minComplexity is number &&
+                      request.resource.data.maxStoryId is string && request.resource.data.maxStoryId.size() <= 50 &&
+                      request.resource.data.maxComplexity is number &&
+                      request.resource.data.createdAt is number;
+        allow update: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid && 
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['minStoryId', 'minComplexity', 'maxStoryId', 'maxComplexity']);
+      }
+      
+      match /phase2Votes/{voteId} {
+        allow read: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId));
+        allow create: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid &&
+                      request.resource.data.keys().hasAll(['userId', 'username', 'votes', 'createdAt']) &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.votes is map &&
+                      request.resource.data.createdAt is number;
+        allow update: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid && 
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']);
+      }
+
+      match /phase3Votes/{voteId} {
+        allow read: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId));
+        allow create: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid &&
+                      request.resource.data.keys().hasAll(['userId', 'username', 'sprintDuration', 'commitment', 'createdAt']) &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.sprintDuration is number &&
+                      request.resource.data.commitment is number &&
+                      request.resource.data.createdAt is number;
+        allow update: if isSignedIn() && isRoomMember(roomId) && voteId == request.auth.uid && 
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sprintDuration', 'commitment']);
+      }
+    }
+  }
+}

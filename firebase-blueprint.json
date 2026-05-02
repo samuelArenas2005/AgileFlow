@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "A collaborative room for estimating user stories",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the room" },
+        "adminId": { "type": "string", "description": "User ID of the room creator" },
+        "phase": { "type": "number", "description": "Current phase of the room (0 to 4)" },
+        "sprintDuration": { "type": "number", "description": "Agreed sprint duration in weeks" },
+        "commitment": { "type": "number", "description": "Agreed commitment per sprint in points" },
+        "createdAt": { "type": "number", "description": "Timestamp" },
+        "status": { "type": "string", "description": "active or completed" }
+      },
+      "required": ["title", "adminId", "phase", "createdAt", "status"]
+    },
+    "RoomMember": {
+      "title": "Room Member",
+      "description": "A participant in a room",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "joinedAt": { "type": "number" }
+      },
+      "required": ["userId", "username", "joinedAt"]
+    },
+    "UserStory": {
+      "title": "User Story",
+      "description": "A user story to be estimated",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "complexity": { "type": "number" },
+        "priority": { "type": "string" },
+        "assignedSprint": { "type": "number" },
+        "assignedUser": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "Phase1Vote": {
+      "title": "Phase 1 Vote",
+      "description": "Vote for min/max complexity user story",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "minStoryId": { "type": "string" },
+        "minComplexity": { "type": "number" },
+        "maxStoryId": { "type": "string" },
+        "maxComplexity": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "username", "minStoryId", "minComplexity", "maxStoryId", "maxComplexity", "createdAt"]
+    },
+    "Phase2UserVote": {
+      "title": "Phase 2 User Vote",
+      "description": "A user's votes for all stories",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "votes": { "type": "object", "description": "Map mapping storyId to {complexity, priority}" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "username", "votes", "createdAt"]
+    },
+    "Phase3Vote": {
+      "title": "Phase 3 Vote",
+      "description": "Vote for sprint duration and commitment",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "sprintDuration": { "type": "number", "description": "Weeks" },
+        "commitment": { "type": "number", "description": "Points" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "username", "sprintDuration", "commitment", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "collaborative estimation room"
+    },
+    "/rooms/{roomId}/members/{userId}": {
+      "schema": { "$ref": "#/entities/RoomMember" },
+      "description": "participants of the room"
+    },
+    "/rooms/{roomId}/userStories/{storyId}": {
+      "schema": { "$ref": "#/entities/UserStory" },
+      "description": "stories in the room"
+    },
+    "/rooms/{roomId}/phase1Votes/{userId}": {
+      "schema": { "$ref": "#/entities/Phase1Vote" },
+      "description": "user phase 1 calibration votes"
+    },
+    "/rooms/{roomId}/phase2Votes/{userId}": {
+      "schema": { "$ref": "#/entities/Phase2UserVote" },
+      "description": "user phase 2 estimation votes"
+    },
+    "/rooms/{roomId}/phase3Votes/{userId}": {
+      "schema": { "$ref": "#/entities/Phase3Vote" },
+      "description": "user phase 3 planning votes"
+    }
+  }
+}
