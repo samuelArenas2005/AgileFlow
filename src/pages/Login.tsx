@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { User, LogIn } from 'lucide-react';
@@ -11,6 +11,8 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +21,7 @@ export function Login() {
     try {
       setLoading(true);
       await login(username, password);
-      navigate('/');
+      navigate(from);
     } catch (err: any) {
       console.error(err);
       if (err.message && err.message.includes('auth/operation-not-allowed')) {

@@ -22,26 +22,67 @@ export function Room() {
   const [phase3Votes, setPhase3Votes] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!roomId) return;
-    const unsubRoom = onSnapshot(doc(db, 'rooms', roomId), (d) => {
-      if (d.exists()) setRoom({ id: d.id, ...d.data() });
-      else navigate('/'); // room deleted or not found
-    }, (err) => handleFirestoreError(err, OperationType.GET, `rooms/${roomId}`));
+    if (!roomId || !user) return;
 
-    const unsubMembers = onSnapshot(collection(db, `rooms/${roomId}/members`), (s) => {
-      setMembers(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/members`));
+    let unsubRoom: any;
+    let unsubMembers: any;
+    let unsubStories: any;
+    let unsub1: any;
+    let unsub2: any;
+    let unsub3: any;
 
-    const unsubStories = onSnapshot(collection(db, `rooms/${roomId}/userStories`), (s) => {
-      setStories(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/userStories`));
+    const setupListeners = () => {
+      unsubRoom = onSnapshot(doc(db, 'rooms', roomId), (d) => {
+        if (d.exists()) {
+          const data = d.data();
+          setRoom({ id: d.id, ...data });
+          
+          // Save to localStorage
+          const prev = JSON.parse(localStorage.getItem('joinedRooms_' + user.uid) || '[]');
+          const existingIndex = prev.findIndex((r: any) => r.id === roomId);
+          if (existingIndex >= 0) {
+            prev[existingIndex].title = data.title;
+          } else {
+            prev.push({ id: roomId, title: data.title, joinedAt: Date.now() });
+          }
+          localStorage.setItem('joinedRooms_' + user.uid, JSON.stringify(prev));
+        }
+        else navigate('/'); // room deleted or not found
+      }, (err) => handleFirestoreError(err, OperationType.GET, `rooms/${roomId}`));
 
-    const unsub1 = onSnapshot(collection(db, `rooms/${roomId}/phase1Votes`), (s) => setPhase1Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase1Votes`));
-    const unsub2 = onSnapshot(collection(db, `rooms/${roomId}/phase2Votes`), (s) => setPhase2Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase2Votes`));
-    const unsub3 = onSnapshot(collection(db, `rooms/${roomId}/phase3Votes`), (s) => setPhase3Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase3Votes`));
+      unsubMembers = onSnapshot(collection(db, `rooms/${roomId}/members`), (s) => {
+        setMembers(s.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/members`));
 
-    return () => { unsubRoom(); unsubMembers(); unsubStories(); unsub1(); unsub2(); unsub3(); };
-  }, [roomId, navigate]);
+      unsubStories = onSnapshot(collection(db, `rooms/${roomId}/userStories`), (s) => {
+        setStories(s.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/userStories`));
+
+      unsub1 = onSnapshot(collection(db, `rooms/${roomId}/phase1Votes`), (s) => setPhase1Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase1Votes`));
+      unsub2 = onSnapshot(collection(db, `rooms/${roomId}/phase2Votes`), (s) => setPhase2Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase2Votes`));
+      unsub3 = onSnapshot(collection(db, `rooms/${roomId}/phase3Votes`), (s) => setPhase3Votes(s.docs.map(d => d.data())), (err) => handleFirestoreError(err, OperationType.LIST, `rooms/${roomId}/phase3Votes`));
+    };
+
+    setDoc(doc(db, `rooms/${roomId}/members/${user.uid}`), {
+      userId: user.uid,
+      username: user.displayName || user.email?.split('@')[0] || 'Desconocido',
+      joinedAt: Date.now()
+    }, { merge: true })
+      .then(() => setupListeners())
+      .catch(err => {
+        console.error("Implicit join error:", err);
+        setupListeners();
+      });
+
+    return () => { 
+      if (unsubRoom) unsubRoom(); 
+      if (unsubMembers) unsubMembers(); 
+      if (unsubStories) unsubStories(); 
+      if (unsub1) unsub1(); 
+      if (unsub2) unsub2(); 
+      if (unsub3) unsub3(); 
+    };
+  }, [roomId, navigate, user]);
 
   if (!room) return <div className="p-8 text-center text-neutral-500">Cargando sala...</div>;
 

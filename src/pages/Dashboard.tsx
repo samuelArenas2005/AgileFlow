@@ -11,6 +11,7 @@ export function Dashboard() {
   const { user, username, logout } = useAuth();
   const navigate = useNavigate();
   const [rooms, setRooms] = useState<any[]>([]);
+  const [joinedRooms, setJoinedRooms] = useState<any[]>([]);
   const [joinRoomId, setJoinRoomId] = useState('');
   const [newRoomTitle, setNewRoomTitle] = useState('');
   const [creating, setCreating] = useState(false);
@@ -22,6 +23,12 @@ export function Dashboard() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'rooms'));
+
+    const stored = localStorage.getItem('joinedRooms_' + user.uid);
+    if (stored) {
+      setJoinedRooms(JSON.parse(stored));
+    }
+
     return unsubscribe;
   }, [user]);
 
@@ -154,7 +161,7 @@ export function Dashboard() {
               {rooms.length === 0 ? (
                 <div className="text-center py-6 text-slate-500 text-sm italic">No has creado ninguna sala aún.</div>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-3 mb-6">
                   {rooms.map(room => (
                     <li key={room.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100 group hover:border-indigo-100 transition-colors">
                       <div>
@@ -165,6 +172,23 @@ export function Dashboard() {
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {joinedRooms.length > 0 && (
+                <>
+                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-6 mb-6 flex items-center"><Hash className="w-4 h-4 mr-2" />Salas Recientes (Unidas)</h2>
+                  <ul className="space-y-3">
+                    {joinedRooms.filter(r => !rooms.find(cr => cr.id === r.id)).map(room => (
+                      <li key={room.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100 group hover:border-indigo-100 transition-colors">
+                        <div>
+                          <p className="font-bold text-sm text-slate-900 group-hover:text-indigo-600 transition-colors">{room.title || 'Sala'}</p>
+                          <p className="text-xs text-slate-400 font-mono mt-1">ID: {room.id}</p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/room/${room.id}`)}>Entrar</Button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           </div>

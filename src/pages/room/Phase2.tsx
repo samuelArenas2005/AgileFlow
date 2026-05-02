@@ -286,16 +286,32 @@ export function Phase2({ roomId, stories, members, isAdmin }: { roomId: string, 
                 <div className="flex flex-wrap gap-4">
                   {members.filter(m => m.userId !== user?.uid).map(m => {
                     const theirVote = votes.find(v => v.userId === m.userId)?.votes?.[story.id];
-                    if (!theirVote || !theirVote.complexity) return (
+                    
+                    let isThinking = true;
+                    let effectiveComplexity = theirVote?.complexity;
+                    let effectivePriority = theirVote?.priority;
+
+                    if (story.id === minConsensus.storyId) {
+                      effectiveComplexity = minConsensus.complexity;
+                      isThinking = !effectivePriority;
+                    } else if (story.id === maxConsensus.storyId) {
+                      effectiveComplexity = maxConsensus.complexity;
+                      isThinking = !effectivePriority;
+                    } else {
+                      isThinking = !theirVote || !theirVote.complexity || !theirVote.priority;
+                    }
+
+                    if (isThinking) return (
                       <div key={m.userId} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 opacity-60">
                         <span className="text-sm font-semibold text-slate-500">{m.username}</span>
                         <span className="text-xs text-slate-400 italic">Pensando...</span>
                       </div>
                     );
+
                     return (
                       <div key={m.userId} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-indigo-100">
                         <span className="text-sm font-semibold text-slate-700">{m.username}</span>
-                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{theirVote.complexity} pts / {theirVote.priority}</span>
+                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{effectiveComplexity} pts / {effectivePriority}</span>
                       </div>
                     );
                   })}
