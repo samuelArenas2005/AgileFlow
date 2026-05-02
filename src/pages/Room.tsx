@@ -123,7 +123,7 @@ export function Room() {
         <aside className="w-full md:w-64 flex flex-col shrink-0 gap-4 mb-8 md:mb-0">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:overflow-hidden md:flex-1 h-auto">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center shrink-0"><Users className="w-4 h-4 mr-2"/> Equipo en línea</h2>
-            <div className="space-y-3 overflow-y-auto pr-2 flex-1">
+            <div className="space-y-3 md:overflow-y-auto pr-2 flex-1">
               {members.map(m => (
                 <div key={m.userId} className="flex items-center gap-3 group">
                   <div className="relative shrink-0">

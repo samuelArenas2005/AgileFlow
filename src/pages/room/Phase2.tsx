@@ -98,13 +98,13 @@ export function Phase2({ roomId, stories, members, isAdmin }: { roomId: string, 
   const myStoryVote = story ? (myVotes[story.id] || { complexity: 0, priority: 'W' }) : null;
 
   return (
-    <div className="flex flex-col md:flex-row h-full gap-6">
+    <div className="flex flex-col md:flex-row md:h-full gap-6">
       <aside className="w-full md:w-72 flex flex-col gap-4 shrink-0">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col max-h-56 md:max-h-full">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:max-h-full">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">User Stories ({stories.length})</h2>
-          <div className="space-y-2 overflow-y-auto pr-2">
+          <div className="md:overflow-y-auto pr-2 flex flex-row md:flex-col gap-2 pb-2 md:pb-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] snap-x">
             {stories.map(s => (
-              <div key={s.id} onClick={() => setSelectedStoryId(s.id)} className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedStoryId === s.id ? 'bg-indigo-50 border-indigo-100' : 'border-slate-100 opacity-60 hover:opacity-100'}`}>
+              <div key={s.id} onClick={() => setSelectedStoryId(s.id)} className={`p-3 min-w-[200px] md:min-w-0 border rounded-lg cursor-pointer transition-colors snap-center shrink-0 ${selectedStoryId === s.id ? 'bg-indigo-50 border-indigo-100' : 'border-slate-100 opacity-60 hover:opacity-100'}`}>
                 <div className="flex justify-between items-start mb-1">
                   <span className={`text-[10px] font-bold ${selectedStoryId === s.id ? 'text-indigo-400' : 'text-slate-400'}`}>{s.id}</span>
                 </div>

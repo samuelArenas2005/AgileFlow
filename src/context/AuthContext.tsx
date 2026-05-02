@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, username: user?.displayName || null, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, username: user?.displayName || user?.email?.split('@')[0] || 'Desconocido', loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

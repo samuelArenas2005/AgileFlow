@@ -49,6 +49,9 @@ service cloud.firestore {
                       request.resource.data.userId == request.auth.uid &&
                       request.resource.data.username is string && request.resource.data.username.size() <= 100 &&
                       request.resource.data.joinedAt is number;
+        allow update: if isSignedIn() && memberId == request.auth.uid && 
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'joinedAt', 'userId']);
                       
         allow delete: if isSignedIn() && (memberId == request.auth.uid || isAdmin(roomId));
       }

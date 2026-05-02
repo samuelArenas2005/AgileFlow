@@ -59,7 +59,7 @@ export function Dashboard() {
         userId: user.uid,
         username,
         joinedAt: Date.now()
-      });
+      }, { merge: true });
 
       // Add stories
       const promises = stories.map(story => 
@@ -90,8 +90,8 @@ export function Dashboard() {
       await setDoc(doc(db, `rooms/${joinRoomId}/members/${user.uid}`), {
         userId: user.uid,
         username,
-        joinedAt: serverTimestamp()
-      });
+        joinedAt: Date.now()
+      }, { merge: true });
       navigate(`/room/${joinRoomId}`);
     } catch (error) {
        handleFirestoreError(error, OperationType.WRITE, `rooms/${joinRoomId}/members`);
