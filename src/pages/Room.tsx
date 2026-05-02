@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, onSnapshot, updateDoc, collection, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, collection, deleteDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Phase1 } from './room/Phase1';
