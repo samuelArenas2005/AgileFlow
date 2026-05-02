@@ -99,14 +99,14 @@ export function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-4xl mx-auto space-y-12">
-        <header className="flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-4xl mx-auto space-y-8 md:space-y-12">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">Mis Salas</h1>
             <p className="text-slate-500 mt-1">Conectado como <span className="font-semibold text-slate-800">{username}</span></p>
           </div>
-          <Button variant="outline" onClick={logout}><LogOut className="w-4 h-4 mr-2"/> Salir</Button>
+          <Button variant="outline" onClick={logout} className="self-start sm:self-auto"><LogOut className="w-4 h-4 mr-2"/> Salir</Button>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

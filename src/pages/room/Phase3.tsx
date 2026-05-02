@@ -117,7 +117,7 @@ export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, 
          </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Tu Propuesta</h3>
           <div className="space-y-4">

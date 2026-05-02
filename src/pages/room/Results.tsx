@@ -78,8 +78,8 @@ export function Results({ roomId, stories, members, room, isAdmin }: { roomId: s
          </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-         <table className="w-full text-sm text-left">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto w-full">
+         <table className="w-full text-sm text-left min-w-[600px] whitespace-nowrap">
           <thead className="bg-slate-50 text-slate-500 font-medium">
             <tr>
               <th className="px-6 py-4 border-b border-slate-200">HU</th>

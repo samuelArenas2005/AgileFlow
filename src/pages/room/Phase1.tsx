@@ -53,7 +53,7 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
         <h2 className="text-xl font-bold text-slate-900 mb-2">Fase 1: Calibración</h2>
         <p className="text-slate-500 mb-6 text-sm">Identifica la historia más simple (Mínima) y la más compleja (Máxima) para tener referencias.</p>
         
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-8">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Historia Mínima</h3>
             <div>
@@ -84,7 +84,7 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
             </div>
           </div>
           
-          <div className="col-span-2 mt-4">
+          <div className="col-span-1 md:col-span-2 mt-4">
             <Button type="submit" className="w-full h-12 text-sm">{submitted ? 'Actualizar mi propuesta' : 'Enviar propuesta'}</Button>
           </div>
         </form>
