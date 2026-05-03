@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, onSnapshot, updateDoc, collection, deleteDoc, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, collection, deleteDoc, setDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Phase1 } from './room/Phase1';
 import { Phase2 } from './room/Phase2';
 import { Phase3 } from './room/Phase3';
 import { Results } from './room/Results';
-import { Users, Copy, ArrowRight, ArrowLeft, Trash2 } from 'lucide-react';
+import { Users, Copy, ArrowRight, ArrowLeft, Trash2, Smile, X } from 'lucide-react';
+import { ReactionLayer } from '../components/ReactionLayer';
 
 export function Room() {
   const { roomId } = useParams();
@@ -20,6 +21,21 @@ export function Room() {
   const [phase1Votes, setPhase1Votes] = useState<any[]>([]);
   const [phase2Votes, setPhase2Votes] = useState<any[]>([]);
   const [phase3Votes, setPhase3Votes] = useState<any[]>([]);
+  const [openReactionMenu, setOpenReactionMenu] = useState<string | null>(null);
+
+  const sendReaction = async (toUserId: string, emoji: string) => {
+    if (!user || !roomId) return;
+    try {
+      await addDoc(collection(db, `rooms/${roomId}/reactions`), {
+        emoji,
+        toUserId,
+        fromUserId: user.uid,
+        timestamp: Date.now()
+      });
+    } catch (e) {
+      console.error('Error sending reaction:', e);
+    }
+  };
 
   useEffect(() => {
     if (!roomId || !user) return;
@@ -84,18 +100,30 @@ export function Room() {
     };
   }, [roomId, navigate, user]);
 
+  // Auto-kick if no longer in members list
+  useEffect(() => {
+    if (members.length > 0 && user && !members.some(m => m.userId === user.uid)) {
+      navigate('/');
+    }
+  }, [members, user, navigate]);
+
   if (!room) return <div className="p-8 text-center text-neutral-500">Cargando sala...</div>;
 
   const isAdmin = user?.uid === room.adminId;
+
+  // Filter votes to only include current members
+  const activePhase1Votes = phase1Votes.filter(v => members.some(m => m.userId === v.userId));
+  const activePhase2Votes = phase2Votes.filter(v => members.some(m => m.userId === v.userId));
+  const activePhase3Votes = phase3Votes.filter(v => members.some(m => m.userId === v.userId));
 
   // Compute Phase 1 Consensus checking
   let minConsensus = { storyId: '', complexity: 0 };
   let maxConsensus = { storyId: '', complexity: 0 };
 
-  if (phase1Votes.length > 0) {
+  if (activePhase1Votes.length > 0) {
     const minCounts: Record<string, { count: number, sum: number}> = {};
     const maxCounts: Record<string, { count: number, sum: number}> = {};
-    phase1Votes.forEach(v => {
+    activePhase1Votes.forEach(v => {
       if (v.minStoryId) {
         minCounts[v.minStoryId] = minCounts[v.minStoryId] || { count: 0, sum: 0 };
         minCounts[v.minStoryId].count++;
@@ -122,9 +150,9 @@ export function Room() {
     if (targetPhase <= room.phase) return true;
 
     if (room.phase === 1 && targetPhase === 2) {
-      if (phase1Votes.length !== members.length || phase1Votes.length === 0) return false;
-      let firstVote = phase1Votes[0];
-      for (const v of phase1Votes) {
+      if (activePhase1Votes.length !== members.length || activePhase1Votes.length === 0) return false;
+      let firstVote = activePhase1Votes[0];
+      for (const v of activePhase1Votes) {
         if (v.minStoryId !== firstVote.minStoryId || v.minComplexity !== firstVote.minComplexity ||
             v.maxStoryId !== firstVote.maxStoryId || v.maxComplexity !== firstVote.maxComplexity) {
           return false;
@@ -134,11 +162,11 @@ export function Room() {
     }
 
     if (room.phase === 2 && targetPhase === 3) {
-      if (phase2Votes.length !== members.length || phase2Votes.length === 0) return false;
+      if (activePhase2Votes.length !== members.length || activePhase2Votes.length === 0) return false;
       let isAligned = true;
       for (const story of stories) {
         let firstVote: any = null;
-        for (const userVote of phase2Votes) {
+        for (const userVote of activePhase2Votes) {
           if (!userVote.submitted) {
             isAligned = false; 
             break;
@@ -173,9 +201,9 @@ export function Room() {
     }
 
     if (room.phase === 3 && targetPhase === 4) {
-      if (phase3Votes.length !== members.length || phase3Votes.length === 0) return false;
-      let firstVote = phase3Votes[0];
-      for (const v of phase3Votes) {
+      if (activePhase3Votes.length !== members.length || activePhase3Votes.length === 0) return false;
+      let firstVote = activePhase3Votes[0];
+      for (const v of activePhase3Votes) {
         if (v.sprintDuration !== firstVote.sprintDuration || v.commitment !== firstVote.commitment) return false;
       }
       return true;
@@ -201,12 +229,12 @@ export function Room() {
         } else if (story.id === maxConsensus.storyId) {
           avgComplexity = maxConsensus.complexity;
         } else {
-          const vote = phase2Votes[0]?.votes?.[story.id];
+          const vote = activePhase2Votes[0]?.votes?.[story.id];
           avgComplexity = vote?.complexity || 0;
         }
         
         const moscowCounts: Record<string, number> = {};
-        phase2Votes.forEach(v => {
+        activePhase2Votes.forEach(v => {
            const p = v.votes?.[story.id]?.priority;
            if (p) moscowCounts[p] = (moscowCounts[p] || 0) + 1;
         });
@@ -294,7 +322,8 @@ export function Room() {
   const phases = ['Setup', 'Fase 1: Calibración', 'Fase 2: Estimación', 'Fase 3: Planificación', 'Resultados'];
 
   return (
-    <div className="flex flex-col min-h-screen md:h-screen text-slate-800 bg-slate-50">
+    <div className="flex flex-col min-h-screen md:h-screen text-slate-800 bg-slate-50 relative">
+      <ReactionLayer roomId={roomId!} />
       <header className="bg-white border-b border-slate-200 p-4 shrink-0 px-4 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
           <div className="flex items-center gap-4">
@@ -358,13 +387,36 @@ export function Room() {
         </section>
 
         {/* Sidebar */}
-        <aside className="w-full md:w-64 flex flex-col shrink-0 gap-4 mb-8 md:mb-0">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:overflow-hidden md:flex-1 h-auto">
+        <aside className="w-full md:w-80 flex flex-col shrink-0 gap-4 mb-8 md:mb-0 relative">
+          
+          {/* Overlay to close menu when clicking outside */}
+          {openReactionMenu && (
+            <div 
+              className="fixed inset-0 z-10" 
+              onClick={() => setOpenReactionMenu(null)}
+            />
+          )}
+
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:flex-1 h-auto relative z-20">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center shrink-0"><Users className="w-4 h-4 mr-2"/> Equipo en línea</h2>
-            <div className="space-y-3 md:overflow-y-auto pr-2 flex-1">
+            <div className="space-y-3 pr-2 flex-1">
               {members.map(m => (
-                <div key={m.userId} className="flex items-center gap-3 group">
-                  <div className="relative shrink-0">
+                <div key={m.userId} className="flex items-center gap-3 group relative">
+                  
+                  {/* Floating emoji menu outside the card to the left */}
+                  {openReactionMenu === m.userId && (
+                    <div className="absolute right-full mr-4 flex gap-1 items-center bg-white border border-slate-200 shadow-md rounded-full p-1 z-30 shrink-0">
+                      {['🍅','💩','🤡','🔥','😂'].map(e => (
+                        <button key={e} onClick={() => sendReaction(m.userId, e)} className="hover:scale-125 transition-transform text-lg px-1.5 py-0.5">{e}</button>
+                      ))}
+                      <div className="w-[1px] h-4 bg-slate-200 mx-1"></div>
+                      <button onClick={() => setOpenReactionMenu(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors" title="Cerrar">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div id={`user-avatar-${m.userId}`} className="relative shrink-0">
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-sm">
                       {m.username.substring(0,2).toUpperCase()}
                     </div>
@@ -377,6 +429,17 @@ export function Room() {
                       {m.userId === user?.uid && <span className="ml-1 text-[10px] text-slate-400">(Tú)</span>}
                     </p>
                   </div>
+                  {m.userId !== user?.uid && (
+                     <div className="relative flex items-center justify-end">
+                       <button 
+                         onClick={() => setOpenReactionMenu(m.userId)} 
+                         className={`text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-full transition-all p-1.5 z-20 relative opacity-60 hover:opacity-100 ${openReactionMenu === m.userId ? 'invisible' : ''}`} 
+                         title="Enviar reacción"
+                       >
+                         <Smile className="w-4 h-4"/>
+                       </button>
+                     </div>
+                  )}
                   {isAdmin && m.userId !== room.adminId && (
                     <button onClick={() => handleKickUser(m.userId)} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">
                       <Trash2 className="w-4 h-4"/>

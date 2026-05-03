@@ -106,6 +106,11 @@ service cloud.firestore {
                       request.resource.data.userId == resource.data.userId &&
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sprintDuration', 'commitment', 'createdAt', 'userId', 'username']);
       }
+
+      match /reactions/{reactionId} {
+        allow read: if isSignedIn() && (isAdmin(roomId) || isRoomMember(roomId));
+        allow create: if isSignedIn() && isRoomMember(roomId);
+      }
     }
   }
 }
