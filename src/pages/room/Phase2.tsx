@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { doc, collection, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { Button } from '../../components/ui/Button';
+import { Toast } from './Toast';
 
 const FIBONACCI = [0, 1, 2, 3, 5, 8, 13, 20, 40, 100];
 const MOSCOW = [
@@ -19,6 +20,7 @@ export function Phase2({ roomId, stories, members, isAdmin }: { roomId: string, 
   const [myVotes, setMyVotes] = useState<Record<string, { complexity: number, priority: string }>>({});
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{message: string, type: 'error' | 'success'} | null>(null);
 
   useEffect(() => {
     if (stories.length > 0 && !selectedStoryId) setSelectedStoryId(stories[0].id);
@@ -165,7 +167,7 @@ export function Phase2({ roomId, stories, members, isAdmin }: { roomId: string, 
 
     try {
       await Promise.all(promises);
-      alert('Valores de consenso sincronizados.');
+      setToastMsg({ message: 'Valores de consenso sincronizados.', type: 'success' });
     } catch(e) {
        handleFirestoreError(e, OperationType.WRITE, `rooms/${roomId}/userStories`);
     }
@@ -176,6 +178,7 @@ export function Phase2({ roomId, stories, members, isAdmin }: { roomId: string, 
 
   return (
     <div className="flex flex-col md:flex-row md:h-full gap-6">
+      {toastMsg && <Toast message={toastMsg.message} type={toastMsg.type} onClose={() => setToastMsg(null)} />}
       <aside className="w-full md:w-72 flex flex-col gap-4 shrink-0">
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:max-h-full">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">User Stories ({stories.length})</h2>

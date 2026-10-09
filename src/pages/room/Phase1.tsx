@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { doc, collection, onSnapshot, setDoc } from 'firebase/firestore';
 import { Button } from '../../components/ui/Button';
+import { Toast } from './Toast';
 
 const FIBONACCI = [0, 1, 2, 3, 5, 8, 13, 20, 40, 100];
 
@@ -14,6 +15,7 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
   const [maxStoryId, setMaxStoryId] = useState('');
   const [maxComplexity, setMaxComplexity] = useState<number | ''>('');
   const [submitted, setSubmitted] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{message: string, type: 'error' | 'success'} | null>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, `rooms/${roomId}/phase1Votes`), (s) => {
@@ -35,11 +37,11 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
     e.preventDefault();
     if (!user || !minStoryId || !maxStoryId || minComplexity === '' || maxComplexity === '') return;
     if (minStoryId === maxStoryId) {
-      alert("La historia mínima y máxima no pueden ser la misma.");
+      setToastMsg({ message: "La historia mínima y máxima no pueden ser la misma.", type: 'error' });
       return;
     }
     if (Number(minComplexity) >= Number(maxComplexity)) {
-      alert("La complejidad de la historia mínima debe ser menor a la máxima.");
+      setToastMsg({ message: "La complejidad de la historia mínima debe ser menor a la máxima.", type: 'error' });
       return;
     }
     try {
@@ -59,6 +61,7 @@ export function Phase1({ roomId, stories, members }: { roomId: string, stories: 
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {toastMsg && <Toast message={toastMsg.message} type={toastMsg.type} onClose={() => setToastMsg(null)} />}
       <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
         <h2 className="text-xl font-bold text-slate-900 mb-2">Fase 1: Calibración</h2>
         <p className="text-slate-500 mb-6 text-sm">Identifica la historia más simple (Mínima) y la más compleja (Máxima) para tener referencias.</p>

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, where, onSnapshot, addDoc, setDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, setDoc, doc, getDoc } from 'firebase/firestore';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { LogOut, Plus, Users, Hash } from 'lucide-react';
+import { LogOut, Plus, Users, Hash, X } from 'lucide-react';
 
 export function Dashboard() {
   const { user, username, logout } = useAuth();
@@ -15,36 +15,62 @@ export function Dashboard() {
   const [joinRoomId, setJoinRoomId] = useState('');
   const [newRoomTitle, setNewRoomTitle] = useState('');
   const [creating, setCreating] = useState(false);
-  const [userStoriesInput, setUserStoriesInput] = useState('');
+  const [userStoriesInputs, setUserStoriesInputs] = useState<string[]>(['', '', '', '', '']);
 
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'rooms'), where('adminId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setRooms(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'rooms'));
 
     const stored = localStorage.getItem('joinedRooms_' + user.uid);
     if (stored) {
-      setJoinedRooms(JSON.parse(stored));
+      const parsedRooms = JSON.parse(stored);
+      setJoinedRooms(parsedRooms);
+      
+      // Verify which joined rooms still exist
+      Promise.all(
+        parsedRooms.map(async (r: any) => {
+          try {
+            const snap = await getDoc(doc(db, 'rooms', r.id));
+            if (!snap.exists()) return null;
+            return { ...r, title: snap.data().title || r.title };
+          } catch (e) {
+            return r; // keep if there's a permission/network error just in case
+          }
+        })
+      ).then(results => {
+        const validRooms = results.filter(r => r !== null);
+        // Only update if something was actually removed or titles updated
+        setJoinedRooms(validRooms);
+        localStorage.setItem('joinedRooms_' + user.uid, JSON.stringify(validRooms));
+      });
     }
 
     return unsubscribe;
   }, [user]);
+
+  const handleAddInput = () => {
+    setUserStoriesInputs([...userStoriesInputs, '']);
+  };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRoomTitle.trim() || !user) return;
     
     // Parse user stories
-    const stories = userStoriesInput.split('\n').filter(s => s.trim()).map((s, i) => {
-      // simple match HU-XX format or create one
-      const match = s.match(/^(HU-\d+):?\s*(.*)$/i);
-      if (match) {
-        return { id: match[1].toUpperCase(), title: match[2].trim() || 'Sin título', description: '' };
-      }
-      return { id: `HU-${(i+1).toString().padStart(2, '0')}`, title: s.trim(), description: '' };
-    });
+    const stories = userStoriesInputs
+      .map(s => s.trim())
+      .filter(s => s)
+      .map((s, i) => {
+        // simple match HU-XX format or create one
+        const match = s.match(/^(HU-\d+):?\s*(.*)$/i);
+        if (match) {
+          return { id: match[1].toUpperCase(), title: match[2].trim() || 'Sin título', description: '' };
+        }
+        return { id: `HU-${(i+1).toString().padStart(2, '0')}`, title: s.trim(), description: '' };
+      });
 
     if (stories.length === 0) {
       alert('Debes ingresar al menos una Historia de Usuario');
@@ -107,7 +133,7 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-8 md:space-y-12">
+      <div className="max-w-5xl mx-auto space-y-8 md:space-y-12">
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">Mis Salas</h1>
@@ -125,15 +151,52 @@ export function Dashboard() {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Título de la Sala</label>
                 <Input value={newRoomTitle} onChange={e => setNewRoomTitle(e.target.value)} required placeholder="Ej. Sprint 4 Planning" className="h-10 border-slate-200 focus-visible:ring-indigo-600" />
               </div>
-              <div className="flex-1">
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Historias de Usuario (una por línea)</label>
-                <textarea 
-                  className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-600 focus-visible:border-indigo-600 resize-none h-full min-h-[150px]" 
-                  required
-                  placeholder="HU-01 Login de usuarios&#10;HU-02 Perfil de usuario&#10;Listar productos..."
-                  value={userStoriesInput}
-                  onChange={e => setUserStoriesInput(e.target.value)}
-                />
+              <div className="flex-1 flex flex-col">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Historias de Usuario (máx. 50 caracteres c/u)</label>
+                <div className="space-y-3 mb-3 flex-1 overflow-y-auto max-h-[300px] pt-1 pb-1 pl-1 -mt-1 -mb-1 -ml-1 pr-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+                  {userStoriesInputs.map((val, idx) => (
+                    <div key={idx} className="relative flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          value={val}
+                          onChange={e => {
+                            const newInputs = [...userStoriesInputs];
+                            newInputs[idx] = e.target.value;
+                            setUserStoriesInputs(newInputs);
+                          }}
+                          maxLength={50}
+                          placeholder={`Ej. HU-0${idx + 1} Login de usuarios`}
+                          className="h-10 border-slate-200 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-0 pr-12 transition-shadow"
+                        />
+                        <span className="absolute right-3 top-2.5 text-xs text-slate-400 pointer-events-none">
+                          {val.length}/50
+                        </span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          if (userStoriesInputs.length > 1) {
+                            setUserStoriesInputs(userStoriesInputs.filter((_, i) => i !== idx));
+                          } else {
+                            setUserStoriesInputs(['']);
+                          }
+                        }}
+                        className="text-slate-300 hover:text-rose-500 transition-colors p-1.5 rounded-full hover:bg-rose-50 shrink-0"
+                        title="Eliminar Historia"
+                      >
+                        <X className="w-5 h-5"/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <Button 
+                  type="button" 
+                  onClick={handleAddInput} 
+                  variant="outline" 
+                  className="w-full flex items-center justify-center border-dashed border-slate-300 text-slate-500 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-colors h-10"
+                >
+                  <Plus className="w-4 h-4 mr-2" /> Añadir Historia
+                </Button>
               </div>
               <div className="pt-2 mt-auto">
                  <Button type="submit" className="w-full h-12" disabled={creating}>{creating ? 'Creando...' : 'Crear Sala'}</Button>

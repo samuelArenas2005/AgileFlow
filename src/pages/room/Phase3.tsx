@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { doc, collection, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { Button } from '../../components/ui/Button';
+import { Toast } from './Toast';
 
 export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, stories: any[], members: any[], isAdmin: boolean }) {
   const { user, username } = useAuth();
@@ -10,6 +11,7 @@ export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, 
   const [sprintDuration, setSprintDuration] = useState<number | ''>('');
   const [commitment, setCommitment] = useState<number | ''>('');
   const [submitted, setSubmitted] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{message: string, type: 'error' | 'success'} | null>(null);
 
   const [phase2Votes, setPhase2Votes] = useState<any[]>([]);
 
@@ -114,7 +116,7 @@ export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAligned) {
-      alert("No puedes enviar una propuesta de sprint si los puntajes de complejidad y prioridad no cuadran entre todos los usuarios en la fase de estimación.");
+      setToastMsg({ message: "No puedes enviar una propuesta de sprint si los puntajes no cuadran entre todos los usuarios en la estimación.", type: 'error' });
       return;
     }
     if (!user || sprintDuration === '' || commitment === '') return;
@@ -133,7 +135,10 @@ export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, 
 
   const handleFinalize = async () => {
     if (!isAdmin) return;
-    if (votes.length === 0) return alert('No hay votos de planificación.');
+    if (votes.length === 0) {
+      setToastMsg({ message: 'No hay votos de planificación.', type: 'error' });
+      return;
+    }
     const avgDuration = Math.round(votes.reduce((sum, v) => sum + v.sprintDuration, 0) / votes.length);
     const avgCommitment = Math.round(votes.reduce((sum, v) => sum + v.commitment, 0) / votes.length);
 
@@ -196,6 +201,7 @@ export function Phase3({ roomId, stories, members, isAdmin }: { roomId: string, 
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {toastMsg && <Toast message={toastMsg.message} type={toastMsg.type} onClose={() => setToastMsg(null)} />}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
          <div>
             <h2 className="text-xl font-bold text-slate-900 mb-1">Fase 3: Planificación de Sprints</h2>

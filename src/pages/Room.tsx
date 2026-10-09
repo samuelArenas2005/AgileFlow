@@ -8,7 +8,7 @@ import { Phase1 } from './room/Phase1';
 import { Phase2 } from './room/Phase2';
 import { Phase3 } from './room/Phase3';
 import { Results } from './room/Results';
-import { Users, Copy, ArrowRight, ArrowLeft, Trash2, Smile, X } from 'lucide-react';
+import { Users, Copy, ArrowRight, ArrowLeft, Trash2, Smile, X, CheckCircle2 } from 'lucide-react';
 import { ReactionLayer } from '../components/ReactionLayer';
 
 export function Room() {
@@ -22,6 +22,7 @@ export function Room() {
   const [phase2Votes, setPhase2Votes] = useState<any[]>([]);
   const [phase3Votes, setPhase3Votes] = useState<any[]>([]);
   const [openReactionMenu, setOpenReactionMenu] = useState<string | null>(null);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
 
   const sendReaction = async (toUserId: string, emoji: string) => {
     if (!user || !roomId) return;
@@ -316,13 +317,20 @@ export function Room() {
 
   const copyId = () => {
     navigator.clipboard.writeText(roomId || '');
-    alert('ID copiado!');
+    setShowCopiedToast(true);
+    setTimeout(() => setShowCopiedToast(false), 2000);
   };
 
   const phases = ['Setup', 'Fase 1: Calibración', 'Fase 2: Estimación', 'Fase 3: Planificación', 'Resultados'];
 
   return (
     <div className="flex flex-col min-h-screen md:h-screen text-slate-800 bg-slate-50 relative">
+      {showCopiedToast && (
+        <div className="fixed bottom-6 md:bottom-auto md:top-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-3 z-[100] transition-all">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span className="text-sm font-medium tracking-wide">¡ID Copiado!</span>
+        </div>
+      )}
       <ReactionLayer roomId={roomId!} />
       <header className="bg-white border-b border-slate-200 p-4 shrink-0 px-4 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
